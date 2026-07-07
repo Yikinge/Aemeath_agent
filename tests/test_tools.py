@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from agent.gateway.router import AssistantTurn, LLMRouter
+from agent.gateway.router import _parse_dsml_tool_calls
 from agent.tools.builtin import discover_builtin
 from agent.tools.loop import run_tool_loop
 from agent.tools.registry import (
@@ -167,6 +168,38 @@ async def test_loop_max_steps_guard():
     out = await run_tool_loop(router, reg, [{"role": "user", "content": "x"}], _ctx(), max_steps=3)
     assert out == "收尾"
     assert router.chat_calls == 3                     # 恰好 max_steps 次带工具调用
+
+
+def test_parse_deepseek_dsml_tool_call():
+    raw = (
+        "<｜｜DSML｜｜tool_calls>\n"
+        '<｜｜DSML｜｜invoke name="mcp__ddg__fetch_content">\n'
+        '<｜｜DSML｜｜parameter name="url" string="true">http://example.com</｜｜DSML｜｜parameter>\n'
+        '<｜｜DSML｜｜parameter name="max_length" string="false">5000</｜｜DSML｜｜parameter>\n'
+        "</｜｜DSML｜｜invoke>\n"
+        "</｜｜DSML｜｜tool_calls>"
+    )
+    calls = _parse_dsml_tool_calls(raw)
+    assert calls == [{
+        "id": "dsml_0",
+        "name": "mcp__ddg__fetch_content",
+        "arguments": '{"url": "http://example.com", "max_length": 5000}',
+    }]
+
+
+async def test_loop_max_steps_never_returns_tool_markup():
+    reg = ToolRegistry()
+
+    async def handler(ctx, args):
+        return "Found 2 search results:\n1. 板块排行\n2. 资金流向"
+
+    raw_tool_markup = "<｜｜DSML｜｜tool_calls><｜｜DSML｜｜invoke name=\"x\"></｜｜DSML｜｜invoke></｜｜DSML｜｜tool_calls>"
+    reg.register(Tool("loopy", "", {"type": "object"}, handler))
+    router = ScriptedToolRouter([], final=raw_tool_markup, always=_call("loopy"))
+    out = await run_tool_loop(router, reg, [{"role": "user", "content": "x"}], _ctx(), max_steps=1)
+    assert "<｜｜DSML" not in out
+    assert "工具调用轮数到上限" in out
+    assert "板块排行" in out
 
 
 async def test_loop_dangerous_routes_to_confirm(store):

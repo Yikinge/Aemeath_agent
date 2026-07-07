@@ -15,8 +15,9 @@ from agent.gateway.router import LLMRouter
 from agent.tools.builtin.commitments import render_reminder_reply
 from agent.tools.registry import ConfirmationRequired, ToolContext, ToolRegistry
 
-# DeepSeek 多步偏弱，保守起步；强模型可调高
-MAX_STEPS = 4
+# DeepSeek 多步工具链路有时需要 search -> fetch -> summarize，给它多一点空间。
+MAX_STEPS = 6
+_MAX_OBSERVATION_CHARS = 1200
 
 # on_trace 回调签名：(step, call, result, ok, ms) -> None
 TraceFn = Callable[[int, dict, str, bool, int], Awaitable[None]]
@@ -57,6 +58,71 @@ def _last_user_text(messages: list[dict]) -> str:
     return ""
 
 
+def _looks_like_tool_markup(text: str) -> bool:
+    markers = ("<｜｜DSML｜｜tool_calls>", "<｜｜DSML｜｜invoke", '"tool_calls"', '"function_call"')
+    return any(m in (text or "") for m in markers)
+
+
+def _clip(text: str, limit: int = _MAX_OBSERVATION_CHARS) -> str:
+    text = (text or "").strip()
+    if len(text) <= limit:
+        return text
+    return text[:limit].rstrip() + "\n...[truncated]"
+
+
+def _compact_observations(observations: list[dict]) -> str:
+    parts = []
+    for i, obs in enumerate(observations, 1):
+        status = "ok" if obs["ok"] else "error"
+        parts.append(
+            f"[{i}] tool={obs['tool']} status={status}\n"
+            f"args={json.dumps(obs['args'], ensure_ascii=False)}\n"
+            f"result:\n{_clip(obs['result'], 1000)}"
+        )
+    return "\n\n".join(parts)
+
+
+def _extract_useful_lines(text: str, limit: int = 8) -> list[str]:
+    lines = []
+    for raw in (text or "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.lower().startswith(("for more information", "error:", "traceback")):
+            continue
+        lines.append(line)
+        if len(lines) >= limit:
+            break
+    return lines
+
+
+def _best_effort_from_observations(observations: list[dict]) -> str:
+    usable = [o for o in observations if o["ok"] and not str(o["result"]).startswith("[工具错误]")]
+    if not usable:
+        return (
+            "我刚才查资料时工具调用轮数到上限了，而且没有拿到可用结果。"
+            "你可以换个更具体的问题再让我查一次，比如限定数据源、市场或时间范围。"
+        )
+
+    bullets: list[str] = []
+    for obs in usable:
+        lines = _extract_useful_lines(obs["result"], limit=5)
+        if not lines:
+            continue
+        bullets.append(f"- {obs['tool']}：{_clip(' / '.join(lines), 280)}")
+        if len(bullets) >= 5:
+            break
+
+    if not bullets:
+        bullets = [f"- {o['tool']}：拿到了结果，但内容太长，没来得及完整整理。" for o in usable[:3]]
+
+    return (
+        "我查资料时工具调用轮数到上限了，但已经拿到一些线索：\n"
+        + "\n".join(bullets)
+        + "\n\n基于这些线索，结论还不够稳。我可以继续缩小范围再查一次，或者你指定一个数据源，我直接给你整理成结论。"
+    )
+
+
 async def run_tool_loop(
     router: LLMRouter,
     registry: ToolRegistry,
@@ -71,6 +137,7 @@ async def run_tool_loop(
     if not registry.to_openai_tools(deny=deny):
         return await router.complete(messages)  # 没有可用工具 → 退回普通对话
 
+    observations: list[dict] = []
     for step in range(max_steps):
         # 每轮重算：search_tools 激活的懒工具，下一轮即可见可调（MCP-B 按需加载）
         tools = registry.to_openai_tools(deny=deny)
@@ -102,6 +169,12 @@ async def run_tool_loop(
                 )
             ms = int((time.monotonic() - t0) * 1000)
             messages.append(_tool_msg(call["id"], result))
+            observations.append({
+                "tool": call["name"],
+                "args": args,
+                "result": result,
+                "ok": not result.startswith("[工具错误]"),
+            })
             if on_trace:
                 await on_trace(step, call, result, not result.startswith("[工具错误]"), ms)
             if call["name"] == "add_reminder" and not result.startswith("[工具错误]"):
@@ -110,4 +183,17 @@ async def run_tool_loop(
                 )
 
     # 触顶兜底：再要一次纯文本收尾，别把工具中间态丢给用户
-    return await router.complete(messages)
+    messages.append({
+        "role": "system",
+        "content": (
+            "工具调用次数已经到上限。现在必须只基于已有工具结果直接回答用户；"
+            "不要再调用工具，不要输出 XML/JSON/tool_calls/代码块。\n\n"
+            "如果信息不完整，也要给 best-effort 答复：先说已经查到什么，再说明不确定性，"
+            "最后给下一步可以怎么继续查。\n\n"
+            f"已有工具结果摘要：\n{_compact_observations(observations)}"
+        ),
+    })
+    final = await router.complete(messages)
+    if _looks_like_tool_markup(final):
+        return _best_effort_from_observations(observations)
+    return final
