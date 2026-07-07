@@ -1,0 +1,7 @@
+{"id": "rel_date_future_interview", "desc": "相对日期·未来计划→commitment 绝对 event_at，不漏进 MEMORY.md", "source_at": "2026-06-18T10:00:00+08:00", "messages": ["下周三我有个重要面试"], "expect": {"commitment_event_at": "2026-06-24", "has_open_commitment": true, "md_no_relative": true}}
+{"id": "future_deadline_report", "desc": "未来截止·相对时间→commitment", "source_at": "2026-06-18T10:00:00+08:00", "messages": ["这个月底之前要交一份重要的项目报告"], "expect": {"has_open_commitment": true, "md_no_relative": true}}
+{"id": "stable_entity_pet_dedup", "desc": "重复实体·橘猫煤球说两遍→单条画像、不当叙事", "source_at": "2026-06-18T10:00:00+08:00", "messages": ["我养了只橘猫，叫煤球", "对了我家煤球是只特别黏人的橘猫"], "expect": {"entity_value_contains": "煤球", "narrative_count_max": 1, "md_contains": "煤球"}}
+{"id": "stable_preference_coffee", "desc": "稳定偏好→profile preference/taste", "source_at": "2026-06-18T10:00:00+08:00", "messages": ["我平时喜欢喝美式咖啡，不加糖不加奶"], "expect": {"profile_category_in": ["preference", "taste"], "has_open_commitment": false}}
+{"id": "short_mood_scolded", "desc": "短期情绪→mood 入库（不堆成长期画像）", "source_at": "2026-06-18T10:00:00+08:00", "messages": ["唉今天上班被领导当众骂了一顿，好累好委屈"], "expect": {"mood_logged": true, "md_no_relative": true}}
+{"id": "discard_calculation", "desc": "一次性请求·不要记→什么都不沉淀", "source_at": "2026-06-18T10:00:00+08:00", "messages": ["帮我算一下 128 乘以 64 等于多少"], "expect": {"no_memory": true}}
+{"id": "discard_smalltalk", "desc": "寒暄→不沉淀", "source_at": "2026-06-18T10:00:00+08:00", "messages": ["哈喽，在忙吗"], "expect": {"no_memory": true}}

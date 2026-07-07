@@ -1,0 +1,66 @@
+# 复制为 config.toml 后填写。敏感信息建议用环境变量（见 README）。
+
+[llm]
+# LiteLLM 模型名格式: "<provider>/<model>"
+default_model = "anthropic/claude-opus-4-8"   # 强推理（主模型）
+fast_model    = "deepseek/deepseek-chat"      # 轻任务/便宜（S2 起用于记忆抽取）
+
+[telegram]
+# 也可用环境变量 TELEGRAM_BOT_TOKEN（优先级更高）
+token      = "PUT-YOUR-BOT-TOKEN-HERE"
+allow_from = ["your_telegram_username"]       # 留空 = 不限制（不建议）
+
+[storage]
+db_path = "~/.agent/agent.db"
+# encryption_key = ""   # SQLCipher（S7 接，P0 先明文）
+
+[persona]
+# S4 会换成可自编辑的 SOUL.md，这里先放占位人格
+system_prompt = "你是一个长期陪伴的个人智能体，像一个对我有兴趣、想进一步了解我的新朋友。说话自然、简洁、有温度，不油腻。"
+
+[console]
+# S7 本地 Web 控制台（看/改/删记忆 + 审计）。默认只绑回环，不要改成 0.0.0.0
+enabled = true
+host    = "127.0.0.1"
+port    = 8787
+
+[memory]
+md_path               = "data/MEMORY.md"
+consolidate_threshold = 2     # 缓冲到几条才触发巩固，保护 prompt cache
+# 记忆生命周期（记忆框架优化 §13）
+timezone                       = "Asia/Shanghai"  # 解析"明天/下周三"的时区基准
+core_max_commitments           = 5                # MEMORY.md「当前开放回路」最多列几条
+recent_mood_days               = 14               # 「近期状态」只看最近多少天的情绪
+narrative_similarity_threshold = 0.82             # 叙事 resolve 触发合并判定的向量相似度阈
+
+# ---------- 工具 / 技能 / MCP（TOOL-*） ----------
+[tools]
+enabled   = true              # 关掉 = 回到纯对话（不带任何工具）
+deny      = []                # 按名禁用某些工具，如 ["add_reminder"]
+# MCP-B 规模治理：工具一多就别全量注入（省上下文）。
+lazy_mcp  = false             # true = MCP 工具一律懒加载（用到才注入，靠 search_tools 发现）
+max_eager = 25                # 工具总数超过此值时，自动把 MCP 工具转懒（lazy_mcp=false 时也生效）
+
+[skills]
+# 技能目录：每个含 SKILL.md 的子文件夹自动挂载成一个工具（渐进披露）
+dir = "agent/skills"
+
+[mcp]
+# path    = "data/mcp.json"   # MCP server 唯一真相源（标准 mcpServers 格式）。默认即此，一般不用改
+timeout = 30                  # 单次 MCP 工具调用超时（秒）；卡死的 server 不拖垮整轮对话
+
+# ── MCP server 不在这个文件里配，而是放到 data/mcp.json（标准 mcpServers 格式）──
+# 需先 pip install mcp（未装则自动跳过 MCP，不影响其余工具）。三种方式管理：
+#   ① 聊天里贴 JSON 让 agent 自己装（install_mcp，走确认门）
+#   ② 直接编辑 data/mcp.json，保存即热更新（无需重启）
+#   ③ 启动时后台异步加载，对话立即可用
+#
+# data/mcp.json 例子（粘网上复制的 mcpServers JSON 即可）：
+# {
+#   "mcpServers": {
+#     "ddg":        { "command": "duckduckgo-mcp-server" },
+#     "filesystem": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/you/Desktop"], "dangerous": true },
+#     "github":     { "url": "https://api.githubcopilot.com/mcp/", "headers": { "Authorization": "Bearer ghp_xxx" } }
+#   }
+# }
+# 含 command=stdio；含 url=http（要老 SSE 传输加 "type": "sse"）。写类建议加 "dangerous": true 走确认门。

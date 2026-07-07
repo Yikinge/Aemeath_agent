@@ -1,0 +1,41 @@
+services:
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ames-agent:latest
+    container_name: ames-agent
+    restart: unless-stopped
+    environment:
+      AGENT_CONFIG: /app/config.docker.toml
+      TZ: ${TZ:-Asia/Shanghai}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_ALLOW_FROM: ${TELEGRAM_ALLOW_FROM:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY:-}
+      TELEGRAM_PROXY_URL: ${TELEGRAM_PROXY_URL:-}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      ALL_PROXY: ${ALL_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1}
+      TELEGRAM_HEALTH_ENABLED: ${TELEGRAM_HEALTH_ENABLED:-1}
+      TELEGRAM_HEALTH_INTERVAL_SEC: ${TELEGRAM_HEALTH_INTERVAL_SEC:-60}
+      TELEGRAM_HEALTH_MAX_FAILURES: ${TELEGRAM_HEALTH_MAX_FAILURES:-3}
+      TELEGRAM_HEALTH_TIMEOUT_SEC: ${TELEGRAM_HEALTH_TIMEOUT_SEC:-20}
+      TELEGRAM_PENDING_RESTART_SEC: ${TELEGRAM_PENDING_RESTART_SEC:-600}
+      LOOP_WATCHDOG_ENABLED: ${LOOP_WATCHDOG_ENABLED:-1}
+      LOOP_WATCHDOG_INTERVAL_SEC: ${LOOP_WATCHDOG_INTERVAL_SEC:-10}
+      LOOP_STALL_RESTART_SEC: ${LOOP_STALL_RESTART_SEC:-180}
+      REMINDER_RECONCILE_INTERVAL_SEC: ${REMINDER_RECONCILE_INTERVAL_SEC:-30}
+      CONSOLE_HOST: 0.0.0.0
+      CONSOLE_PORT: 8787
+    volumes:
+      - ./data:/app/data
+      - ./SOUL.md:/app/SOUL.md:ro
+      - ./config.docker.toml:/app/config.docker.toml:ro
+    ports:
+      - "${CONSOLE_BIND:-127.0.0.1}:${CONSOLE_PORT:-8787}:8787"

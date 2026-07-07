@@ -1,0 +1,20 @@
+.git
+.venv
+__pycache__
+.pytest_cache
+.DS_Store
+
+# Secrets / local-only config
+.env
+config.toml
+
+# Runtime state and private memory
+data
+*.db
+*.db-*
+*.bak
+
+# Local scratch / generated docs that are not needed at runtime
+.claude
+.agents
+.codex

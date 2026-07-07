@@ -1,0 +1,37 @@
+# 密钥/隐私：绝不入库
+config.toml
+.env
+
+# 运行时数据 / 个人隐私：绝不入库
+data/*
+!data/README.md
+!data/.gitkeep
+*.db
+*.db-*
+*.bak
+~/.agent/
+# 工作记忆快照（个人画像/事件）
+data/MEMORY.md
+# MCP 配置，可能含 API token
+data/mcp.json
+data/journal/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+#文档
+面试材料.md
+设计总览.md
+需求文档.md
+
+# OS
+.DS_Store
+data/agent_db.md
+
+# Local agents / IDE / generated scratch
+.claude/
+.agents/
+.codex/
+.impeccable/

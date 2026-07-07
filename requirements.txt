@@ -1,0 +1,17 @@
+litellm>=1.83.0          # 1.83.0 起修复了 2026-03 的供应链投毒，勿用更早版本
+python-telegram-bot>=22.0
+aiosqlite>=0.20
+python-dotenv>=1.0       # 自动加载 .env 里的 API Key
+apscheduler>=3.10        # 主动引擎心跳定时（S6）
+fastapi>=0.115           # 本地控制台（S7）
+uvicorn>=0.30            # ASGI server（S7）
+mcp>=1.0                 # MCP 客户端（TOOL-2）；未安装时自动跳过 MCP 接入，不影响其余工具
+# tomllib 为 Python 3.12 标准库，无需安装
+# Skill 的 SKILL.md frontmatter 用内置极简解析，无需 pyyaml
+
+# 可选 MCP server（按需装；config 里解开对应 [[mcp.servers]] 即接入）
+duckduckgo-mcp-server>=0.4.0  # 网络搜索（无需 API key）；给 data/mcp.json 里的 ddg MCP 提供命令
+
+# 测试（确定性单元/集成测试；LLM 质量评测另行手动跑）
+pytest>=8.0
+pytest-asyncio>=0.24
