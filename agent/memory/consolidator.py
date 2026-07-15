@@ -28,6 +28,7 @@ from agent.memory.retrieve import _age_days, _cosine
 from agent.memory.store import Store, commitment_signature
 from agent.memory.types import EVENT_MEMORY, RESOLVE_VERDICTS
 from agent.proactive.commitments import extract_commitments
+from agent.proactive.policy import candidate_is_timely
 
 _PRUNE_MAX_STRENGTH = 1.0   # 从没被强化过（strength 仍为初始值）
 _PRUNE_MAX_IMPORTANCE = 0.4  # 不重要
@@ -421,7 +422,11 @@ class Consolidator:
         facts = await self.store.all_active_facts(namespace)
         profile = [f for f in facts if f.category in _PROFILE_CATS]
         prefs = [f for f in facts if f.category in _PREF_CATS]
-        commits = (await self.store.open_commitments_for_md(now_iso(), namespace))[: self.core_max_commitments]
+        now = now_iso()
+        commits = [
+            c for c in await self.store.open_commitments_for_md(now, namespace)
+            if candidate_is_timely(c, now)
+        ][: self.core_max_commitments]
         insights = (await self.store.list_narratives(namespace, kind="insight"))[:3]
         mood_line = await self._recent_mood_line(namespace)
 

@@ -131,6 +131,7 @@ Orchestrator.run_turn
 agent/
 ├── channels/        # Telegram 等入口
 ├── console/         # FastAPI 本地控制台
+├── eval/            # 记忆质量评测
 ├── gateway/         # LLM / embedding 网关
 ├── memory/          # 记忆存储、抽取、召回、巩固、journal
 ├── orchestration/   # 单轮对话编排
@@ -148,7 +149,7 @@ agent/
 python -m pytest
 ```
 
-当前有 `116` 个确定性测试，覆盖：
+当前有 `126` 个确定性测试，覆盖：
 
 - 时间归一化与跨天锚点
 - 记忆路由、合并、遗忘、门控
@@ -156,7 +157,6 @@ python -m pytest
 - 精确提醒创建、恢复、补偿
 - 工具循环、懒加载、危险工具确认
 - 评分策略与每日记忆投影
-
 LLM 质量评测单独运行，避免把非确定性模型输出放进 CI：
 
 ```bash
@@ -186,5 +186,3 @@ python -m agent.eval.memory_eval
 - `config.docker.toml`：Docker 默认配置，敏感信息从环境变量读取。
 - `SOUL.md`：默认人格文件，可以改成自己的智能体人格。
 - `data/mcp.json`：运行时 MCP 配置，可能包含 token，不要提交。
-
-

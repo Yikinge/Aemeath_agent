@@ -11,7 +11,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from agent.gateway.router import LLMRouter
 from agent.memory.models import now_iso
@@ -22,6 +25,47 @@ from agent.tools.loop import run_tool_loop
 from agent.tools.builtin.commitments import add_reminder, parse_reminder_request, render_reminder_reply
 from agent.tools.registry import ToolContext, ToolRegistry
 from agent.trust.confirm import ConfirmGate, parse_decision
+
+
+_LEAKED_TIME_PREFIX_RE = re.compile(
+    r"^\s*[\[【](?:该)?消息发送于[^\]】\n]*[\]】]\s*",
+    re.IGNORECASE,
+)
+
+
+def _history_for_model(rows: list[dict]) -> list[dict]:
+    """Keep history free of timestamp labels, including artifacts already stored."""
+    return [
+        {"role": row["role"], "content": _strip_leaked_time_prefix(str(row["content"]))}
+        for row in rows
+    ]
+
+
+def _history_time_context(rows: list[dict], timezone: str) -> str:
+    """Render timestamps as internal system metadata, separate from conversation text."""
+    try:
+        tz = ZoneInfo(timezone)
+    except Exception:
+        tz = ZoneInfo("UTC")
+    lines: list[str] = []
+    for index, row in enumerate(rows, start=1):
+        sent_at = datetime.fromtimestamp(float(row["ts"]), tz)
+        label = sent_at.strftime("%Y-%m-%d %H:%M")
+        lines.append(f"{index}. {row['role']} @ {label}")
+    return (
+        "【内部历史时间索引】以下序号对应随后历史消息的顺序，仅用于判断时间先后。"
+        "不要在回复中复述、引用或展示本索引。\n" + "\n".join(lines)
+    )
+
+
+def _strip_leaked_time_prefix(reply: str) -> str:
+    """Last-resort guard against models imitating an internal timestamp label."""
+    cleaned = reply or ""
+    while True:
+        updated = _LEAKED_TIME_PREFIX_RE.sub("", cleaned, count=1)
+        if updated == cleaned:
+            return cleaned.strip() or "我在。"
+        cleaned = updated
 
 
 class Orchestrator:
@@ -59,7 +103,9 @@ class Orchestrator:
         await self.store.add_message("user", text, namespace)
         # §9：用户来消息了 → 把已发出待回应的主动 check-in 闭合（这条回复随后经 consolidate 自然回沉 event_memory）
         await self.memory.close_sent_commitments(namespace)
-        history = await self.store.recent_messages(20, namespace)
+        history_rows = await self.store.recent_messages_with_timestamps(20, namespace)
+        history = _history_for_model(history_rows)
+        history_time_context = _history_time_context(history_rows, self.timezone)
 
         direct_reminder = parse_reminder_request(text)
         if direct_reminder is not None and "add_reminder" not in self.tool_deny:
@@ -92,7 +138,10 @@ class Orchestrator:
             now_hint=current_time_hint(self.timezone),
         )
 
-        messages = [{"role": "system", "content": wm.as_system()}, *history]
+        messages = [{
+            "role": "system",
+            "content": wm.as_system() + "\n\n" + history_time_context,
+        }, *history]
         if self.registry is not None and self.registry.to_openai_tools(deny=self.tool_deny):
             ctx = ToolContext(
                 self.store, self.memory, self.router, self.confirm, namespace,
@@ -104,6 +153,7 @@ class Orchestrator:
             )
         else:
             reply = await self.router.complete(messages)
+        reply = _strip_leaked_time_prefix(reply)
         await self.store.add_message("assistant", reply, namespace)
         latency_ms = int((time.monotonic() - t0) * 1000)
 

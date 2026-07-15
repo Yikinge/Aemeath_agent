@@ -450,6 +450,21 @@ class Store:
         rows = await cur.fetchall()
         return [{"role": r, "content": c} for r, c in reversed(rows)]
 
+    async def recent_messages_with_timestamps(
+        self, n: int = 20, namespace: str = "default",
+    ) -> list[dict]:
+        """Return model history with source timestamps preserved.
+
+        Chat-completion messages do not have a standard timestamp field, so callers
+        format ``ts`` into the message content before sending it to a model.
+        """
+        cur = await self.db.execute(
+            "SELECT role, content, ts FROM message WHERE namespace = ? ORDER BY ts DESC LIMIT ?",
+            (namespace, n),
+        )
+        rows = await cur.fetchall()
+        return [{"role": r, "content": c, "ts": ts} for r, c, ts in reversed(rows)]
+
     async def last_message_ts(self, namespace: str = "default") -> float | None:
         cur = await self.db.execute(
             "SELECT MAX(ts) FROM message WHERE namespace = ?", (namespace,)
@@ -931,6 +946,23 @@ class Store:
         )
         await self.db.commit()
 
+    async def recent_profile_question_topics(
+        self, since: str, namespace: str = "default", *, attempt_since: str | None = None,
+    ) -> set[str]:
+        """Topics sent in the long window or attempted in the short window."""
+        attempt_since = attempt_since or since
+        cur = await self.db.execute(
+            "SELECT candidate_id FROM proactive_decision_trace "
+            "WHERE namespace=? AND candidate_kind='profile_discovery' "
+            "AND ((final_sent=1 AND ts>=?) OR ts>=?) AND candidate_id LIKE 'profile:%'",
+            (namespace, since, attempt_since),
+        )
+        return {
+            row[0].split(":", 1)[1]
+            for row in await cur.fetchall()
+            if row[0] and ":" in row[0]
+        }
+
     async def list_tick_trace(self, namespace: str = "default", n: int = 50) -> list[dict]:
         cur = await self.db.execute(
             "SELECT id, ts, sent, reason, commitment_id, message FROM tick_trace "
@@ -1143,13 +1175,14 @@ class Store:
     async def open_commitments_for_md(self, now: str, namespace: str = "default") -> list[dict]:
         """MEMORY.md「当前开放回路」用：open 且未过期，按 event_at/due_at 升序（最近的在前）。"""
         cur = await self.db.execute(
-            "SELECT id, kind, content, due_at, event_at, sensitivity, due_window_start, due_window_end, confidence FROM commitment "
+            "SELECT id, kind, content, due_at, event_at, sensitivity, due_window_start, "
+            "due_window_end, confidence, expires_at FROM commitment "
             "WHERE namespace=? AND status='open' AND (expires_at IS NULL OR expires_at>?) "
             "ORDER BY COALESCE(due_window_start, event_at, due_at, '9999') ASC",
             (namespace, now),
         )
         cols = ("id", "kind", "content", "due_at", "event_at", "sensitivity",
-                "due_window_start", "due_window_end", "confidence")
+                "due_window_start", "due_window_end", "confidence", "expires_at")
         return [dict(zip(cols, r)) for r in await cur.fetchall()]
 
     async def due_commitments(self, now: str, namespace: str = "default") -> list[dict]:

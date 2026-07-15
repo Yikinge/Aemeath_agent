@@ -146,7 +146,12 @@ class MemoryService:
         kept, decisions = gate_memories(hits, query) if hits else ([], [])
         dyn_parts: list[str] = []
         if now_hint:
-            dyn_parts.append(f"【当前时间】现在是 {now_hint}。涉及日期/时间一律以此为准，不要自己编。")
+            dyn_parts.append(
+                f"【当前时间】现在是 {now_hint}。涉及日期/时间一律以此为准，不要自己编。\n"
+                "【历史时间规则】历史消息的真实日期由内部时间索引提供。旧消息里的几点、今天、明天和提醒，"
+                "只属于那条消息的日期；除非当前仍存在有效任务或用户主动提起，否则不要把过期提醒、"
+                "旧计划或已发生事件当成今天的待办，也不要主动追问。"
+            )
         if kept:
             # MemoryBank 间隔重复：只强化**真正被注入**的碎片（被门控跳过的不算用到）
             await self.store.reinforce_memories([h.item.id for h in kept])

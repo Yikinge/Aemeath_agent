@@ -116,7 +116,10 @@ async def test_cross_day_per_item_anchoring(store, tmp_path):
 async def test_sent_drops_from_md_then_closes_on_reply(store, tmp_path):
     router = PromptRouter()
     cons, mem, eng = _stack(store, tmp_path, router)
-    cid = await store.add_commitment("event_check_in", "面试后关心结果", due_at=None, event_at=_PAST)
+    cid = await store.add_commitment(
+        "event_check_in", "面试后关心结果", due_at=None, event_at=_PAST,
+        expires_at="2099-01-01",
+    )
     await cons.refresh_memory_md()
     assert "面试后关心结果" in cons.read_memory_md()      # 一开始在「当前开放回路」
 

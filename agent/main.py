@@ -165,7 +165,7 @@ def main() -> None:
         registry=registry, tool_deny=set(cfg.tool_deny), mcp=mcp_manager,
         reminders=reminder_runtime, timezone=cfg.memory_timezone,
     )
-    engine = ProactiveEngine(store, router, memory, persona)
+    engine = ProactiveEngine(store, router, memory, persona, cfg.memory_timezone)
 
     async def on_message(
         text: str, user: str | None, chat_id: int,

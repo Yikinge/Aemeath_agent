@@ -122,7 +122,7 @@ async def _amain() -> None:
         registry=registry, tool_deny=set(cfg.tool_deny), mcp=mcp_manager,
         timezone=cfg.memory_timezone,
     )
-    engine = ProactiveEngine(store, router, memory, persona)
+    engine = ProactiveEngine(store, router, memory, persona, cfg.memory_timezone)
 
     print(f"[模型] {cfg.default_model}  [向量] {cfg.embed_model if router.embed_live() else '降级'}  "
           f"[人格] {'SOUL.md' if persona != cfg.system_prompt else 'config'}  "

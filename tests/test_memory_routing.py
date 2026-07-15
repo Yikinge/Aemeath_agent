@@ -31,6 +31,7 @@ async def test_future_plan_goes_to_commitment_not_narrative(store, tmp_path):
                            "content": "2026-06-24 用户有重要面试", "importance": 8}]),
         commitments=json.dumps([{"kind": "event_check_in",
                                  "content": "2026-06-24 用户有重要面试，面试后关心结果和感受",
+                                 "expires_at": "2099-01-01",
                                  "due_hint": "none"}]),
     )
     c = Consolidator(store, router, _md(tmp_path))
